@@ -1,0 +1,24 @@
+on: push
+
+name: "Build and Test"
+
+jobs:
+  build:
+    name: "Build and Test"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 14
+      
+      - name: Test
+        run: |
+          npm install -g elm
+          elm make
+          
+      - name: Test
+        run: |
+          npm install -g elm-test
+          elm-test 
