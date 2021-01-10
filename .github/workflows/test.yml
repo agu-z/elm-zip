@@ -13,7 +13,7 @@ jobs:
         with:
           node-version: 14
       
-      - name: Test
+      - name: Build
         run: |
           npm install -g elm
           elm make
