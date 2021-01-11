@@ -1,6 +1,8 @@
 module Zip.Entry exposing
     ( Entry
+    , comment
     , fileName
+    , isDirectory
     , lastModified
     )
 
@@ -54,3 +56,13 @@ lastModified timezone (Entry record) =
                 |> (*) 2
         , millisecond = 0
         }
+
+
+comment : Entry -> String
+comment (Entry record) =
+    record.comment
+
+
+isDirectory : Entry -> Bool
+isDirectory (Entry record) =
+    Bitwise.and record.externalAttributes 0x10 /= 0 || String.endsWith "/" record.fileName

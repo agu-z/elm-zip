@@ -4,6 +4,7 @@ import Expect exposing (Expectation)
 import Hex.Convert
 import Test exposing (..)
 import Zip exposing (Zip)
+import Zip.Entry
 
 
 withSample : (Zip -> Expectation) -> () -> Expectation
@@ -29,8 +30,22 @@ suite =
         [ describe "fromBytes"
             [ test "creates a Zip when valid" (withSample <| \_ -> Expect.pass)
             ]
-        , describe "entries"
+        , describe "all"
             [ test "returns all entries in the file" <|
-                withSample (Zip.entries >> List.length >> Expect.equal 4)
+                withSample (Zip.all >> List.length >> Expect.equal 4)
+            ]
+        , describe "byName"
+            [ test "returns just the entry if it exists" <|
+                withSample
+                    (Zip.byName "elm-zip-main/README.md"
+                        >> Maybe.map Zip.Entry.fileName
+                        >> Expect.equal (Just "elm-zip-main/README.md")
+                    )
+            , test "returns nothing if it does not exist" <|
+                withSample
+                    (Zip.byName "elm-zip-main/nonexistent"
+                        >> Maybe.map Zip.Entry.fileName
+                        >> Expect.equal Nothing
+                    )
             ]
         ]

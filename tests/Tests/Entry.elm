@@ -8,30 +8,48 @@ import Zip
 import Zip.Entry exposing (..)
 
 
-withSample : (Entry -> Expectation) -> () -> Expectation
-withSample fn =
+withSample : String -> (Entry -> Expectation) -> () -> Expectation
+withSample name expect =
     Tests.Zip.withSample
         (\zip ->
-            case Zip.entries zip of
-                _ :: gitignore :: _ ->
-                    fn gitignore
+            case zip |> Zip.byName name of
+                Just entry ->
+                    expect entry
 
-                _ ->
-                    Expect.fail "failed to load entry"
+                Nothing ->
+                    Expect.fail ("Failed to load entry: " ++ name)
         )
 
 
-testGetter : String -> (Entry -> a) -> a -> Test
-testGetter name fn expected =
-    describe name
-        [ test "returns the correct value" <|
-            withSample (fn >> Expect.equal expected)
-        ]
+root : (Entry -> Expectation) -> () -> Expectation
+root =
+    withSample "elm-zip-main/"
+
+
+gitignore : (Entry -> Expectation) -> () -> Expectation
+gitignore =
+    withSample "elm-zip-main/.gitignore"
 
 
 suite : Test
 suite =
     describe "Zip.Entry"
-        [ testGetter "fileName" fileName "elm-zip-main/.gitignore"
-        , testGetter "lastModified" (lastModified Time.utc) (Time.millisToPosix 1610177800000)
+        [ describe "fileName"
+            [ test "returns the correct value" <|
+                gitignore (fileName >> Expect.equal "elm-zip-main/.gitignore")
+            ]
+        , describe "lastModified"
+            [ test "returns the correct value" <|
+                gitignore (lastModified Time.utc >> Expect.equal (Time.millisToPosix 1610177800000))
+            ]
+        , describe "comment"
+            [ test "returns the correct value" <|
+                gitignore (comment >> Expect.equal "")
+            ]
+        , describe "isDirectory"
+            [ test "returns False if file" <|
+                gitignore (isDirectory >> Expect.equal False)
+            , test "returns True if directory" <|
+                root (isDirectory >> Expect.equal True)
+            ]
         ]

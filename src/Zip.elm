@@ -1,6 +1,7 @@
 module Zip exposing
     ( Zip
-    , entries
+    , all
+    , byName
     , fromBytes
     )
 
@@ -18,6 +19,27 @@ fromBytes bytes =
         |> Maybe.map (\( data, records ) -> Zip data records)
 
 
-entries : Zip -> List Entry
-entries (Zip _ records) =
+all : Zip -> List Entry
+all (Zip _ records) =
     List.map Entry records
+
+
+byName : String -> Zip -> Maybe Entry
+byName name (Zip _ records) =
+    records
+        |> find (\record -> record.fileName == name)
+        |> Maybe.map Entry
+
+
+find : (a -> Bool) -> List a -> Maybe a
+find check list =
+    case list of
+        [] ->
+            Nothing
+
+        item :: tail ->
+            if check item then
+                Just item
+
+            else
+                find check tail
