@@ -1,14 +1,20 @@
 module Zip.Entry exposing
     ( Entry
+    , ExtractError(..)
+    , checksum
     , comment
+    , extract
+    , extractWith
     , fileName
     , isDirectory
     , lastModified
     )
 
 import Bitwise
+import Bytes exposing (Bytes)
 import Date
-import Internal.Format as Internal exposing (CdRecord, Entry(..))
+import Flate exposing (inflate)
+import Internal.Format as Internal exposing (CdRecord, CompressionMethod(..), Entry(..), readFile)
 import Time exposing (Posix, Zone)
 import Time.Extra as Time
 
@@ -18,12 +24,12 @@ type alias Entry =
 
 
 fileName : Entry -> String
-fileName (Entry record) =
+fileName (Entry _ record) =
     record.fileName
 
 
 lastModified : Zone -> Entry -> Posix
-lastModified timezone (Entry record) =
+lastModified timezone (Entry _ record) =
     let
         time =
             record.lastModified
@@ -59,10 +65,65 @@ lastModified timezone (Entry record) =
 
 
 comment : Entry -> String
-comment (Entry record) =
+comment (Entry _ record) =
     record.comment
 
 
 isDirectory : Entry -> Bool
-isDirectory (Entry record) =
+isDirectory (Entry _ record) =
     Bitwise.and record.externalAttributes 0x10 /= 0 || String.endsWith "/" record.fileName
+
+
+checksum : Entry -> Int
+checksum (Entry _ record) =
+    record.crc32
+
+
+type ExtractError
+    = UnsupportedCompression Int
+    | InflateError
+    | IntegrityError
+    | NoData
+
+
+extract : Entry -> Result ExtractError Bytes
+extract =
+    extractWith (always Nothing)
+
+
+extractWith :
+    ({ method : Int, rawBytes : Bytes } -> Maybe Bytes)
+    -> Entry
+    -> Result ExtractError Bytes
+extractWith fallback (Entry allBytes record) =
+    case readFile allBytes record of
+        Just rawBytes ->
+            (case record.compressionMethod of
+                Stored ->
+                    Ok rawBytes
+
+                Deflated ->
+                    inflate rawBytes
+                        |> Result.fromMaybe InflateError
+
+                Unsupported method ->
+                    case fallback { method = method, rawBytes = rawBytes } of
+                        Just bytes ->
+                            Ok bytes
+
+                        Nothing ->
+                            Err (UnsupportedCompression method)
+            )
+                |> Result.andThen (integrity record.crc32)
+
+        Nothing ->
+            Err NoData
+
+
+integrity : Int -> Bytes -> Result ExtractError Bytes
+integrity sum bytes =
+    if sum == Flate.crc32 bytes then
+        Ok bytes
+
+    else
+        Err IntegrityError

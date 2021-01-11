@@ -1,8 +1,8 @@
 module Zip exposing
     ( Zip
-    , all
     , byName
     , fromBytes
+    , ls
     )
 
 import Bytes exposing (Bytes)
@@ -19,16 +19,16 @@ fromBytes bytes =
         |> Maybe.map (\( data, records ) -> Zip data records)
 
 
-all : Zip -> List Entry
-all (Zip _ records) =
-    List.map Entry records
+ls : Zip -> List Entry
+ls (Zip allBytes records) =
+    List.map (Entry allBytes) records
 
 
 byName : String -> Zip -> Maybe Entry
-byName name (Zip _ records) =
+byName name (Zip allBytes records) =
     records
         |> find (\record -> record.fileName == name)
-        |> Maybe.map Entry
+        |> Maybe.map (Entry allBytes)
 
 
 find : (a -> Bool) -> List a -> Maybe a

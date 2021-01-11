@@ -11,15 +11,12 @@ module Internal.Format exposing
     , list
     , listStep
     , readDirectory
+    , readFile
     , topDecoder
     )
 
 import Bytes exposing (Bytes, Endianness(..))
 import Bytes.Decode as Decode exposing (Decoder, Step(..))
-
-
-type Entry
-    = Entry CdRecord
 
 
 readDirectory : Bytes -> Maybe ( Bytes, List CdRecord )
@@ -76,7 +73,7 @@ findCdBounds bytes =
 type alias CdRecord =
     { compressionMethod : CompressionMethod
     , lastModified : Int
-    , crc32 : Bytes
+    , crc32 : Int
     , compressedSize : Int
     , uncompressedSize : Int
     , startOffset : Int
@@ -103,9 +100,9 @@ cdRecord =
             Decode.map5 CdRecord
                 (compressionMethod |> after 10)
                 (Decode.unsignedInt32 LE)
-                (Decode.bytes 4)
-                (Decode.signedInt32 LE)
-                (Decode.signedInt32 LE)
+                (Decode.unsignedInt32 LE)
+                (Decode.unsignedInt32 LE)
+                (Decode.unsignedInt32 LE)
 
         recordBounds =
             Decode.map5 CdRecordBounds
@@ -129,7 +126,7 @@ cdRecord =
 type CompressionMethod
     = Stored
     | Deflated
-    | Unsupported
+    | Unsupported Int
 
 
 compressionMethod : Decoder CompressionMethod
@@ -143,11 +140,39 @@ compressionMethod =
                 8 ->
                     Deflated
 
-                _ ->
-                    Unsupported
+                method ->
+                    Unsupported method
     in
     Decode.unsignedInt16 LE
         |> Decode.map help
+
+
+
+-- PRIVATE IMPLEMENTATION DETAIL:
+-- Entries keep all data bytes from the zip as opposed to just their own.
+-- While counterintuitive, this prevents unnecessarily copying the bytes until an Entry is read.
+-- We could store a lazy function but that would prevent Entries from being compared.
+
+
+type Entry
+    = Entry Bytes CdRecord
+
+
+readFile : Bytes -> CdRecord -> Maybe Bytes
+readFile allBytes record =
+    let
+        entryDataDecoder =
+            Decode.map2 (+)
+                (Decode.unsignedInt16 LE)
+                (Decode.unsignedInt16 LE)
+                |> after (record.startOffset + 26)
+                |> Decode.andThen
+                    (\offset ->
+                        Decode.bytes record.compressedSize
+                            |> after offset
+                    )
+    in
+    Decode.decode entryDataDecoder allBytes
 
 
 
