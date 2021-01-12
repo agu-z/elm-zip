@@ -76,8 +76,11 @@ Files and directories get their own entries.
 
 If you only care about one of them, you can use the [`Zip.Entry.isDirectory`](./Zip-Entry#isDirectory) function to filter them:
 
+
     allFiles =
-        List.filter (not << Entry.isDirectory) zip
+        zip
+            |> Zip.ls
+            |> List.filter (not << Entry.isDirectory)
 
 -}
 ls : Zip -> List Entry
