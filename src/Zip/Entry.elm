@@ -61,7 +61,7 @@ import Time.Extra as Time
 
 You can use this to [extract the content](#extract-content) and [read the metadata](#read-metadata).
 
-Check out [Entry.path](#path) to learn more about the way these entries are stored.
+See [`Entry.path`](#path) to learn more about the way these entries are stored.
 
 -}
 type alias Entry =
@@ -118,20 +118,21 @@ toBytes =
 
 {-| Extract archives with other compression methods.
 
-    handleCompression { method, rawBytes } =
+    handleRareCompression { method, rawBytes } =
         case method of
             6 ->
                 -- Use raw bytes to extract the data.
                 decodeImplode rawBytes
 
             _ ->
-                -- We don't know how to handle other methods.
+                -- In this example, we don't know how to
+                -- handle other methods.
                 Nothing
 
     extracted =
-        entry |> extractWith handleCompression
+        entry |> extractWith handleRareCompression
 
-Note: This callback is only called if the method is not 0 (Stored) nor 8 (Deflated). You do not need to handle these yourself.
+Note: This callback is only used if the method is not 0 (Stored) nor 8 (Deflated). You do not need to handle these yourself.
 
 You can read more about compression methods and their corresponding numbers in section 4.4.5 of the [specification](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
 
@@ -217,9 +218,8 @@ compressedSize (Entry _ record) =
 
 {-| Get the last time an entry was modified.
 
-Zip time stamps are relative to the time zone they were created in.
-
-Unfortunately, this information is not stored anywhere, making them only meaningful if you know it.
+Zip time stamps are relative to the time zone they were created in. However, the time zone is not stored in the archive.
+This means you need to know the zone to get a meaningful time stamp.
 
 -}
 lastModified : Zone -> Entry -> Posix
@@ -259,9 +259,6 @@ lastModified timezone (Entry _ record) =
 
 
 {-| Get the comment of an entry.
-
-Did you know files can have comments? I didn't.
-
 -}
 comment : Entry -> String
 comment (Entry _ record) =
@@ -277,7 +274,7 @@ isDirectory (Entry _ record) =
 
 {-| Get the [CRC32 checksum](https://en.wikipedia.org/wiki/Cyclic_redundancy_check) of an entry's uncompressed data.
 
-You do not need to confirm the integrity of data manually. The extract content functions perform this check automatically for you.
+You don't need to check the integrity of the data, the extract content functions do it for you.
 
 However, you might still find this checksum useful for other purposes, like quickly determining whether two files are identical.
 

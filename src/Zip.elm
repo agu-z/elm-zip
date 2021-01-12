@@ -32,7 +32,7 @@ import Internal.Format exposing (CdRecord, Entry(..), readDirectory)
 
 {-| Represents a Zip archive.
 
-An archive is comprised of [entries](./Zip-Entry#Entry) which represent (optionally) compressed files and directories.
+An archive is comprised of [entries](./Zip-Entry#Entry) which represent files -that may be compressed- and directories.
 
 -}
 type Zip
@@ -57,7 +57,7 @@ If you have [an uploaded File](https://package.elm-lang.org/packages/elm/file/la
             |> Task.map Zip.fromBytes
             |> Task.perform GotZip
 
-You can also get `Bytes` from anywhere like [an HTTP request](https://package.elm-lang.org/packages/elm/http/latest/Http#expectBytes),
+You can also get `Bytes` from somewhere else, such as [an HTTP request](https://package.elm-lang.org/packages/elm/http/latest/Http#expectBytes),
 or even from [within another archive](./Zip-Entry#toBytes).
 
 -}
@@ -74,8 +74,7 @@ fromBytes bytes =
 
 Files and directories get their own entries.
 
-If you only care about one of them, you can use the [`Zip.Entry.isDirectory`](./Zip-Entry#isDirectory) function to filter them:
-
+If you only care about one kind, you can use the [`Zip.Entry.isDirectory`](./Zip-Entry#isDirectory) function to filter them:
 
     allFiles =
         zip
