@@ -178,9 +178,9 @@ integrity sum bytes =
 
     path dir == "versions/"
 
-    path v1 == "versions/v1"
+    path v1 == "versions/v1.txt"
 
-    path v2 == "versions/v2"
+    path v2 == "versions/v2.txt"
 
 Even though Zip archives are aware of directories, they do not store entries in a tree format.
 Instead, each entry simply indicates its absolute path in the archive.
