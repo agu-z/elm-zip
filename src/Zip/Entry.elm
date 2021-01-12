@@ -70,7 +70,7 @@ type alias Entry =
 
 {-| Extracting content from an entry might fail if:
 
-1.  The data is compressed through an unsupported method. See [extractWith](#extractWith) for more information.
+1.  The data is compressed through an unsupported method. See [`extractWith`](#extractWith) for more information.
 2.  The extracted data does not match the integrity checksum.
 3.  The entry has no data of the expected type.
 4.  The [DEFLATE](https://en.wikipedia.org/wiki/Deflate) data is corrupted.

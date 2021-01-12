@@ -72,7 +72,7 @@ fromBytes bytes =
     allEntries =
         Zip.ls zip
 
-Files and directories get their own entries and they are not stored in a tree format.
+Files and directories get their own entries.
 
 If you only care about one of them, you can use the [`Zip.Entry.isDirectory`](./Zip-Entry#isDirectory) function to filter them:
 
@@ -87,15 +87,15 @@ ls (Zip allBytes records) =
 
 {-| Get an [entry](./Zip-Entry#Entry) by its absolute path.
 
-    Zip.byPath "versions/v1.txt"
+    zip |> Zip.byPath "versions/v1.txt"
 
 `Nothing` is returned if no entry matches the path exactly.
 
 Directory entries are typically stored in the archive with a slash at the end:
 
-    Zip.byPath "versions" == Nothing
+    zip |> Zip.byPath "versions" == Nothing
 
-    Zip.byPath "versions/" == Just Entry
+    zip |> Zip.byPath "versions/" == Just Entry
 
 -}
 byPath : String -> Zip -> Maybe Entry
