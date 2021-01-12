@@ -1,7 +1,7 @@
 {
     "type": "package",
     "name": "agu-z/elm-zip",
-    "summary": "Extract zip files without leaving Elm",
+    "summary": "Work with ZIP archives without leaving Elm.",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
     "exposed-modules": [
