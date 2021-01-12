@@ -1,8 +1,7 @@
 module Tests.Entry exposing (suite)
 
-import Bytes exposing (Bytes)
-import Bytes.Decode as Decode
 import Expect exposing (Expectation)
+import Hex.Convert
 import Test exposing (..)
 import Tests.Zip
 import Time
@@ -14,7 +13,7 @@ withSample : String -> (Entry -> Expectation) -> () -> Expectation
 withSample name expect =
     Tests.Zip.withSample
         (\zip ->
-            case zip |> Zip.byName name of
+            case zip |> Zip.byPath name of
                 Just entry ->
                     expect entry
 
@@ -48,21 +47,25 @@ corruptedDeflate =
     withSample "sample/corrupted_deflate"
 
 
-asString : Bytes -> Maybe String
-asString bytes =
-    let
-        decoder =
-            Decode.string (Bytes.width bytes)
-    in
-    Decode.decode decoder bytes
+v1 : (Entry -> Expectation) -> () -> Expectation
+v1 =
+    withSample "sample/versions/v1.txt"
 
 
 suite : Test
 suite =
     describe "Zip.Entry"
-        [ describe "fileName"
+        [ describe "path"
             [ test "returns the correct value" <|
-                versionJson (fileName >> Expect.equal "sample/version.json")
+                versionJson (path >> Expect.equal "sample/version.json")
+            ]
+        , describe "extractedSize"
+            [ test "returns the correct value" <|
+                v1 (extractedSize >> Expect.equal 12)
+            ]
+        , describe "compressedSize"
+            [ test "returns the correct value" <|
+                v1 (compressedSize >> Expect.equal 14)
             ]
         , describe "lastModified"
             [ test "returns the correct value" <|
@@ -82,20 +85,25 @@ suite =
             [ test "returns the correct value" <|
                 versionJson (checksum >> Expect.equal 804172212)
             ]
-        , describe "extract"
-            [ test "returns uncompressed data" <|
+        , describe "extracting"
+            [ test "returns uncompressed text" <|
                 versionJson
-                    (extract
+                    (toString
                         >> Result.toMaybe
-                        >> Maybe.andThen asString
                         >> Expect.equal (Just "{ \"required\": 2 }\n")
                     )
+            , test "returns uncompressed bytes" <|
+                v1
+                    (toBytes
+                        >> Result.toMaybe
+                        >> Expect.equal (Hex.Convert.toBytes "68656C6C6F2C20776F726C64210A")
+                    )
             , test "checks integrity" <|
-                corrupted (extract >> Expect.equal (Err IntegrityError))
+                corrupted (toBytes >> Expect.equal (Err IntegrityError))
             , test "fails on unsupported compression method" <|
-                unsupported (extract >> Expect.equal (Err (UnsupportedCompression 0x0A)))
+                unsupported (toBytes >> Expect.equal (Err (UnsupportedCompression 0x0A)))
             , test "fails on corrupted flate data" <|
-                corruptedDeflate (extract >> Expect.equal (Err InflateError))
+                corruptedDeflate (toBytes >> Expect.equal (Err InflateError))
             ]
         , describe "extractWith"
             [ test "allows falling back on unsupported compression" <|

@@ -38,14 +38,14 @@ suite =
         , describe "byName"
             [ test "returns just the entry if it exists" <|
                 withSample
-                    (Zip.byName "sample/version.json"
-                        >> Maybe.map Zip.Entry.fileName
+                    (Zip.byPath "sample/version.json"
+                        >> Maybe.map Zip.Entry.path
                         >> Expect.equal (Just "sample/version.json")
                     )
             , test "returns nothing if it does not exist" <|
                 withSample
-                    (Zip.byName "sample/nonexistent"
-                        >> Maybe.map Zip.Entry.fileName
+                    (Zip.byPath "sample/nonexistent"
+                        >> Maybe.map Zip.Entry.path
                         >> Expect.equal Nothing
                     )
             ]
