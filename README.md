@@ -12,9 +12,6 @@ At this point, you might find performance bottlenecks.
 In that case, please [create an issue](https://github.com/agu-z/elm-zip/issues/new) that describes your use-case and
 -whenever possible- provides test files.
 
-We could deal with these limitations by [performing the intensive operations across multiple `update` cycles](https://discourse.elm-lang.org/t/long-running-computations-in-elm-that-wont-freeze-the-page/5836), 
-or executing them on [WebWorkers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers).
-
 ## Acknowledgements
 
 Thanks to [folkertdev](https://github.com/folkertdev) for writing [elm-flate](https://package.elm-lang.org/packages/folkertdev/elm-flate/latest/).
