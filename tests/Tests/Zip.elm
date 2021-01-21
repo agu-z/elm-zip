@@ -1,8 +1,10 @@
-module Tests.Zip exposing (suite, withSample)
+module Tests.Zip exposing (sameDosTime, suite, withSample)
 
+import Bytes.Encode as Encode
 import Expect exposing (Expectation)
 import Hex.Convert
 import Test exposing (..)
+import Time exposing (Posix)
 import Zip exposing (Zip)
 import Zip.Entry
 
@@ -23,6 +25,13 @@ withSample fn () =
 
         Nothing ->
             Expect.fail "failed to decode"
+
+
+sameDosTime : Posix -> Posix -> Expectation
+sameDosTime a b =
+    Time.posixToMillis a
+        |> toFloat
+        |> Expect.within (Expect.Absolute 2000) (Time.posixToMillis b |> toFloat)
 
 
 suite : Test
@@ -48,5 +57,181 @@ suite =
                         >> Maybe.map Zip.Entry.path
                         >> Expect.equal Nothing
                     )
+            ]
+        , describe "count"
+            [ test "returns the number of entries in the archive" <|
+                withSample (Zip.count >> Expect.equal 10)
+            ]
+        , describe "isEmpty"
+            [ test "returns True if empty" <|
+                \_ ->
+                    Zip.empty
+                        |> Zip.isEmpty
+                        |> Expect.equal True
+            , test "returns False if not empty" <|
+                withSample (Zip.isEmpty >> Expect.equal False)
+            ]
+        , describe "empty"
+            [ test "has no entries" <|
+                \_ ->
+                    Zip.empty
+                        |> Zip.ls
+                        |> List.length
+                        |> Expect.equal 0
+            ]
+        , describe "fromEntries"
+            [ test "creates an archive with the provided entries" <|
+                withSample
+                    (\zip ->
+                        let
+                            entries =
+                                Zip.ls zip
+                        in
+                        Zip.fromEntries entries
+                            |> Zip.ls
+                            |> Expect.equal entries
+                    )
+            ]
+        , describe "insert"
+            [ test "adds an entry to the archive" <|
+                withSample
+                    (\zip ->
+                        case Zip.byPath "sample/version.json" zip of
+                            Just entry ->
+                                Zip.empty
+                                    |> Zip.insert entry
+                                    |> Expect.all
+                                        [ Zip.count >> Expect.equal 1
+                                        , Zip.byPath "sample/version.json" >> Expect.equal (Just entry)
+                                        ]
+
+                            Nothing ->
+                                Expect.fail "Couldn't find entry"
+                    )
+            , test "replaces entries with the same path" <|
+                withSample
+                    (\zip ->
+                        let
+                            newEntry =
+                                Zip.Entry.store
+                                    { path = "sample/version.json"
+                                    , lastModified = ( Time.utc, Time.millisToPosix 0 )
+                                    , comment = Nothing
+                                    }
+                                    (Encode.encode (Encode.string "{ \"current\":  30 }"))
+                        in
+                        zip
+                            |> Zip.insert newEntry
+                            |> Expect.all
+                                [ Zip.count >> Expect.equal 10
+                                , Zip.byPath "sample/version.json" >> Expect.equal (Just newEntry)
+                                ]
+                    )
+            ]
+        , describe "filter" <|
+            let
+                filtered =
+                    Zip.filter (Zip.Entry.path >> String.endsWith ".txt")
+            in
+            [ test "removes entries for which the predicate returns False" <|
+                withSample
+                    (filtered
+                        >> Expect.all
+                            [ Zip.byPath "sample/version.json" >> Expect.equal Nothing
+                            , Zip.byPath "sample/" >> Expect.equal Nothing
+                            , Zip.byPath "sample/corrupted" >> Expect.equal Nothing
+                            ]
+                    )
+            , test "keeps entries for which the predicate returns True" <|
+                withSample
+                    (filtered
+                        >> Expect.all
+                            [ Zip.byPath "sample/versions/v1.txt" >> Expect.notEqual Nothing
+                            , Zip.byPath "sample/versions/v2.txt" >> Expect.notEqual Nothing
+                            , Zip.byPath "sample/versions/meta/comments.txt" >> Expect.notEqual Nothing
+                            ]
+                    )
+            ]
+        , describe "toBytes" <|
+            let
+                posix =
+                    Time.millisToPosix 1611189269538
+
+                hiTxt =
+                    Zip.Entry.store
+                        { path = "hi.txt"
+                        , lastModified = ( Time.utc, posix )
+                        , comment = Just "some comment"
+                        }
+                        (Encode.encode (Encode.string "hello world"))
+
+                nestedHiTxt =
+                    Zip.Entry.compress
+                        { path = "data/hi.txt"
+                        , lastModified = ( Time.utc, Time.millisToPosix 0 )
+                        , comment = Nothing
+                        }
+                        (Encode.encode (Encode.string "hello world"))
+
+                dataDir =
+                    Zip.Entry.createDirectory
+                        { path = "data/"
+                        , lastModified = ( Time.utc, Time.millisToPosix 0 )
+                        , comment = Nothing
+                        }
+            in
+            [ test "empty archives" <|
+                \_ ->
+                    Zip.empty
+                        |> Zip.toBytes
+                        |> Zip.fromBytes
+                        |> Maybe.map Zip.isEmpty
+                        |> Expect.equal (Just True)
+            , test "stored files" <|
+                \_ ->
+                    let
+                        maybeEntry =
+                            Zip.empty
+                                |> Zip.insert hiTxt
+                                |> Zip.toBytes
+                                |> Zip.fromBytes
+                                |> Maybe.andThen (Zip.byPath "hi.txt")
+                    in
+                    case maybeEntry of
+                        Nothing ->
+                            Expect.fail "Entry not found in encoded archive"
+
+                        Just entry ->
+                            Expect.all
+                                [ Zip.Entry.toString >> Expect.equal (Ok "hello world")
+                                , Zip.Entry.lastModified Time.utc >> sameDosTime posix
+                                , Zip.Entry.comment >> Expect.equal "some comment"
+                                ]
+                                entry
+            , test "stored under directories" <|
+                \_ ->
+                    Zip.empty
+                        |> Zip.insert nestedHiTxt
+                        |> Zip.toBytes
+                        |> Zip.fromBytes
+                        |> Maybe.andThen (Zip.byPath "data/hi.txt")
+                        |> Maybe.map Zip.Entry.toString
+                        |> Expect.equal (Just <| Ok "hello world")
+            , test "directory entries" <|
+                \_ ->
+                    Zip.empty
+                        |> Zip.insert dataDir
+                        |> Zip.toBytes
+                        |> Zip.fromBytes
+                        |> Maybe.andThen (Zip.byPath "data/")
+                        |> Maybe.map Zip.Entry.isDirectory
+                        |> Expect.equal (Just True)
+            , test "multiple entries" <|
+                \_ ->
+                    Zip.fromEntries [ hiTxt, nestedHiTxt, dataDir ]
+                        |> Zip.toBytes
+                        |> Zip.fromBytes
+                        |> Maybe.map Zip.count
+                        |> Expect.equal (Just 3)
             ]
         ]

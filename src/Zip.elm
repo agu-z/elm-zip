@@ -3,6 +3,13 @@ module Zip exposing
     , fromBytes
     , ls
     , byPath
+    , count
+    , isEmpty
+    , empty
+    , fromEntries
+    , insert
+    , filter
+    , toBytes
     )
 
 {-| Work with [Zip archives](https://en.wikipedia.org/wiki/ZIP_file_format).
@@ -10,12 +17,12 @@ module Zip exposing
 @docs Zip
 
 
-# Reading
+# Read an archive
 
 @docs fromBytes
 
 
-# Accessing Content
+# Access the content
 
 Once you have a `Zip`, you can use it to access its files and directories.
 
@@ -23,11 +30,33 @@ Use the [Zip.Entry module](./Zip-Entry#Entry) to do read their content and metad
 
 @docs ls
 @docs byPath
+@docs count
+@docs isEmpty
+
+
+# Build an archive
+
+You can alter archives or create your own.
+
+Checkout the [Build section](./Zip-Entry#build) of the `Zip.Entry` module to learn how to make your own entries.
+
+@docs empty
+@docs fromEntries
+@docs insert
+@docs filter
+
+
+## ...and when it's ready
+
+@docs toBytes
 
 -}
 
 import Bytes exposing (Bytes)
-import Internal.Format exposing (CdRecord, Entry(..), readDirectory)
+import Internal.Decode exposing (readDirectory)
+import Internal.Encode exposing (writeArchive)
+import Internal.Format exposing (Entry(..), EntryMeta)
+import Zip.Entry as Entry
 
 
 {-| Represents a Zip archive.
@@ -36,12 +65,13 @@ An archive is comprised of [entries](./Zip-Entry#Entry) which represent files -t
 
 -}
 type Zip
-    = Zip Bytes (List CdRecord)
+    = Zip (List Entry)
 
 
 {-| Read a `Zip` from `Bytes`.
 
-If you have [an uploaded File](https://package.elm-lang.org/packages/elm/file/latest/File) of an archive, you can use [`File.toBytes`](https://package.elm-lang.org/packages/elm/file/latest/File#toBytes) to read it:
+If you have [an uploaded File](https://package.elm-lang.org/packages/elm/file/latest/File) of an archive,
+you can use [`File.toBytes`](https://package.elm-lang.org/packages/elm/file/latest/File#toBytes) to read it:
 
     import File exposing (File)
     import Task exposing (Task)
@@ -63,8 +93,28 @@ or even from [within another archive](./Zip-Entry#toBytes).
 -}
 fromBytes : Bytes -> Maybe Zip
 fromBytes bytes =
-    readDirectory bytes
-        |> Maybe.map (\( data, records ) -> Zip data records)
+    readDirectory bytes |> Maybe.map Zip
+
+
+{-| Write a `Zip` to `Bytes`.
+
+From here, you can [download the archive](https://package.elm-lang.org/packages/elm/file/latest/File-Download#bytes),
+[upload it to a server](https://package.elm-lang.org/packages/elm/http/latest/Http#bytesBody>), etc.
+
+    update : Msg -> Model -> ( Model, Cmd Msg )
+    update msg model =
+        case msg of
+            DownloadArchive ->
+                ( model
+                , model.zip
+                    |> Zip.toBytes
+                    |> File.Download.bytes "archive.zip" "application/zip"
+                )
+
+-}
+toBytes : Zip -> Bytes
+toBytes (Zip entries) =
+    writeArchive entries
 
 
 {-| List all [entries](./Zip-Entry#Entry) in the archive.
@@ -83,8 +133,8 @@ If you only care about one kind, you can use the [`Zip.Entry.isDirectory`](./Zip
 
 -}
 ls : Zip -> List Entry
-ls (Zip allBytes records) =
-    List.map (Entry allBytes) records
+ls (Zip entries) =
+    entries
 
 
 {-| Get an [entry](./Zip-Entry#Entry) by its absolute path.
@@ -101,10 +151,86 @@ Directory entries are typically stored in the archive with a slash at the end:
 
 -}
 byPath : String -> Zip -> Maybe Entry
-byPath name (Zip allBytes records) =
-    records
-        |> find (\record -> record.fileName == name)
-        |> Maybe.map (Entry allBytes)
+byPath path =
+    ls >> find (Entry.path >> (==) path)
+
+
+{-| Count the number of entries in an archive.
+-}
+count : Zip -> Int
+count =
+    ls >> List.length
+
+
+{-| Determine if an archive is empty.
+-}
+isEmpty : Zip -> Bool
+isEmpty =
+    ls >> List.isEmpty
+
+
+{-| An empty archive with no entries.
+
+From here, you can use [`insert`](#insert) to add some entries.
+
+-}
+empty : Zip
+empty =
+    Zip []
+
+
+{-| Create an archive from a list of entries.
+-}
+fromEntries : List Entry -> Zip
+fromEntries =
+    Zip
+
+
+{-| Add a new entry to the archive.
+
+This function replaces entries with the same path. You can conditionally add it by checking existence with the [`byPath`](#byPath) function:
+
+    case zip |> Zip.byPath path of
+        Nothing ->
+            -- Entry does not exist, create and add it
+            zip |> Zip.insert (createEntry ())
+
+        Just _ ->
+            -- Entry already exists, leave archive as it is
+            zip
+
+-}
+insert : Entry -> Zip -> Zip
+insert entry (Zip currentEntries) =
+    currentEntries
+        |> List.filter (Entry.path >> (/=) (Entry.path entry))
+        |> (::) entry
+        |> Zip
+
+
+{-| Only keep entries that pass a given test.
+
+
+### Examples
+
+Remove entries by path:
+
+    filter (\entry -> Entry.path entry /= "sample/version.json") zip
+
+Keep all files under 1MB:
+
+    filter (\entry -> Entry.extractedSize entry < 1048576) zip
+
+Keep only `.txt` files:
+
+    filter (String.endsWith ".txt" << Entry.path) zip
+
+-}
+filter : (Entry -> Bool) -> Zip -> Zip
+filter check (Zip currentEntries) =
+    currentEntries
+        |> List.filter check
+        |> Zip
 
 
 find : (a -> Bool) -> List a -> Maybe a

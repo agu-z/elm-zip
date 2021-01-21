@@ -10,7 +10,10 @@ module Zip.Entry exposing
     , isDirectory
     , comment
     , checksum
-    , extractWith
+    , Meta
+    , store
+    , compress
+    , createDirectory
     )
 
 {-| Work with files and directories in the archive.
@@ -36,14 +39,55 @@ module Zip.Entry exposing
 @docs checksum
 
 
-# Other Compression Methods
+# Build
 
-This library uses the [`folkertdev/elm-flate`](https://package.elm-lang.org/packages/folkertdev/elm-flate/latest) package to support
-[Deflate](https://en.wikipedia.org/wiki/Deflate) compression. Most archives you'll find in the wild will use this method.
+Create archive entries.
 
-If you're expecting to work with archives using other methods, you can use the following function to handle them.
+@docs Meta
 
-@docs extractWith
+
+## Files
+
+When you create a file `Entry` you can choose to [store](#store) the data as-is or [compress](#compress) it.
+
+Keep in mind that:
+
+  - Compressing files is slower than storing them.
+  - Compression is effective when the data contains repeated patterns. For example, XML files are good candidates.
+  - Compressing very small files with few repeated patterns can actually result in bigger archives.
+    This is because we need to store extra data in order to uncompress them.
+  - The ZIP format stores files individually with their own compression. Unfortunately, patterns shared across files
+    cannot be reused.
+
+Hopefully that helps you decide whether you need compression or not.
+
+@docs store
+@docs compress
+
+
+## Directories
+
+@docs createDirectory
+
+
+# Compression Methods
+
+[Deflate](https://en.wikipedia.org/wiki/Deflate) compression is provided by
+[`folkertdev/elm-flate`](https://package.elm-lang.org/packages/folkertdev/elm-flate/latest/).
+Most archives you'll find in the wild will use this method.
+
+If you're expecting to work with archives using other methods, you can handle them by using the method number
+and raw bytes from the `UnsupportedCompression` case.
+
+    case toBytes entry of
+        Err (UnsupportedCompression 6 rawBytes) ->
+            Ok <| decodeImplode rawBytes
+
+        result ->
+            result
+
+You can read more about compression methods and their corresponding numbers in section 4.4.5 of
+the [specification](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
 
 -}
 
@@ -52,7 +96,10 @@ import Bytes exposing (Bytes)
 import Bytes.Decode as Decode
 import Date
 import Flate exposing (inflate)
-import Internal.Format as Internal exposing (CdRecord, CompressionMethod(..), Entry(..), readFile)
+import Internal.Decode exposing (readFile)
+import Internal.Encode exposing (noBytes)
+import Internal.Format as Internal exposing (CompressionMethod(..), Entry(..), EntryBytes(..), EntryMeta)
+import LZ77
 import Time exposing (Posix, Zone)
 import Time.Extra as Time
 
@@ -70,14 +117,14 @@ type alias Entry =
 
 {-| Extracting content from an entry might fail if:
 
-1.  The data is compressed through an unsupported method. See [`extractWith`](#extractWith) for more information.
+1.  The data is compressed through an unsupported method. See [Compression Methods](#compression-methods) for more information.
 2.  The extracted data does not match the integrity checksum.
 3.  The entry has no data of the expected type.
 4.  The [DEFLATE](https://en.wikipedia.org/wiki/Deflate) data is corrupted.
 
 -}
 type ExtractError
-    = UnsupportedCompression Int
+    = UnsupportedCompression Int Bytes
     | IntegrityError
     | DecodeError
     | InflateError
@@ -87,7 +134,7 @@ type ExtractError
 -}
 toString : Entry -> Result ExtractError String
 toString =
-    extractWith (always Nothing)
+    toBytes
         >> Result.andThen (Result.fromMaybe DecodeError << asString)
 
 
@@ -112,37 +159,8 @@ Examples of what you can do with `Bytes`:
 
 -}
 toBytes : Entry -> Result ExtractError Bytes
-toBytes =
-    extractWith (always Nothing)
-
-
-{-| Extract archives with other compression methods.
-
-    handleRareCompression { method, rawBytes } =
-        case method of
-            6 ->
-                -- Use raw bytes to extract the data.
-                decodeImplode rawBytes
-
-            _ ->
-                -- In this example, we don't know how to
-                -- handle other methods.
-                Nothing
-
-    extracted =
-        entry |> extractWith handleRareCompression
-
-Note: This callback is only used if the method is not 0 (Stored) nor 8 (Deflated). You do not need to handle these yourself.
-
-You can read more about compression methods and their corresponding numbers in section 4.4.5 of the [specification](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
-
--}
-extractWith :
-    ({ method : Int, rawBytes : Bytes } -> Maybe Bytes)
-    -> Entry
-    -> Result ExtractError Bytes
-extractWith fallback (Entry allBytes record) =
-    case readFile allBytes record of
+toBytes ((Entry _ record) as entry) =
+    case readFile entry of
         Just rawBytes ->
             (case record.compressionMethod of
                 Stored ->
@@ -153,12 +171,7 @@ extractWith fallback (Entry allBytes record) =
                         |> Result.fromMaybe InflateError
 
                 Unsupported method ->
-                    case fallback { method = method, rawBytes = rawBytes } of
-                        Just bytes ->
-                            Ok bytes
-
-                        Nothing ->
-                            Err (UnsupportedCompression method)
+                    Err (UnsupportedCompression method rawBytes)
             )
                 |> Result.andThen (integrity record.crc32)
 
@@ -265,11 +278,14 @@ comment (Entry _ record) =
     record.comment
 
 
-{-| Determine whether an entry is a directory.
+{-| Determine if an entry is a directory.
 -}
 isDirectory : Entry -> Bool
 isDirectory (Entry _ record) =
-    Bitwise.and record.externalAttributes 0x10 /= 0 || String.endsWith "/" record.fileName
+    -- MS-DOS Directory Attribute
+    (Bitwise.and record.externalAttributes 0x10 /= 0)
+        -- Directory paths end with a slash
+        || String.endsWith "/" record.fileName
 
 
 {-| Get the [CRC32 checksum](https://en.wikipedia.org/wiki/Cyclic_redundancy_check) of an entry's uncompressed data.
@@ -282,3 +298,177 @@ However, you might still find this checksum useful for other purposes, like quic
 checksum : Entry -> Int
 checksum (Entry _ record) =
     record.crc32
+
+
+
+-- Writing
+
+
+posixToDos : ( Zone, Posix ) -> Int
+posixToDos ( zone, time ) =
+    let
+        year =
+            Time.toYear zone time
+                - 1980
+                |> Bitwise.shiftLeftBy 25
+
+        month =
+            Time.toMonth zone time
+                |> Date.monthToNumber
+                |> Bitwise.shiftLeftBy 21
+
+        day =
+            Time.toDay zone time
+                |> Bitwise.shiftLeftBy 16
+
+        hour =
+            Time.toHour zone time
+                |> Bitwise.shiftLeftBy 11
+
+        minute =
+            Time.toMinute zone time
+                |> Bitwise.shiftLeftBy 5
+
+        second =
+            Time.toSecond zone time // 2
+    in
+    year
+        |> Bitwise.or month
+        |> Bitwise.or day
+        |> Bitwise.or hour
+        |> Bitwise.or minute
+        |> Bitwise.or second
+
+
+{-| Metadata needed to create an entry.
+
+Note: `lastModified` requires a `Time.Zone` to be provided because ZIP time stamps are not stored in a universal zone (like UTC). Read more [above](#lastModified).
+
+-}
+type alias Meta =
+    { path : String
+    , lastModified : ( Zone, Posix )
+    , comment : Maybe String
+    }
+
+
+entryMeta : Meta -> EntryMeta
+entryMeta meta =
+    { madeBy = 0x031E
+    , extractMinVersion = 20
+    , flag = 0
+    , compressionMethod = Stored
+    , lastModified = posixToDos meta.lastModified
+    , crc32 = 0
+    , compressedSize = 0
+    , uncompressedSize = 0
+    , fileName = meta.path
+    , extraField = noBytes
+    , comment = Maybe.withDefault "" meta.comment
+    , internalAttributes = 0
+    , externalAttributes = 0
+    }
+
+
+unixMode : Int -> Int
+unixMode =
+    Bitwise.shiftLeftBy 16
+
+
+fileMode : Int
+fileMode =
+    unixMode 0x81B4
+
+
+dirMode : Int
+dirMode =
+    unixMode 0x81B4
+
+
+{-| Create an entry for a file without compressing it.
+
+    import Bytes.Encode as Encode
+
+    helloTxt =
+        Encode.string "Hello, World!"
+            |> Encode.encode
+            |> store
+                { path = "hello.txt"
+                , lastModified = ( zone, now )
+                , comment = Nothing
+                }
+
+Files inside directories are created by passing the absolute path:
+
+    store
+        { path = "versions/v1.txt"
+        , lastModified = ( zone, now )
+        , comment = Nothing
+        }
+
+-}
+store : Meta -> Bytes -> Entry
+store meta data =
+    let
+        base =
+            entryMeta meta
+    in
+    Entry (Exactly data)
+        { base
+            | compressionMethod = Stored
+            , lastModified = posixToDos meta.lastModified
+            , crc32 = Flate.crc32 data
+            , compressedSize = Bytes.width data
+            , uncompressedSize = Bytes.width data
+            , externalAttributes = fileMode
+        }
+
+
+{-| Compress a file with [Deflate](https://en.wikipedia.org/wiki/Deflate) and create an entry out of it.
+
+Besides compression, it works just like [`store`](#store).
+
+-}
+compress : Meta -> Bytes -> Entry
+compress meta uncompressed =
+    let
+        base =
+            entryMeta meta
+
+        compressed =
+            Flate.deflateWithOptions (Flate.Dynamic (Flate.WithWindowSize LZ77.maxWindowSize)) uncompressed
+    in
+    Entry (Exactly compressed)
+        { base
+            | compressionMethod = Deflated
+            , lastModified = posixToDos meta.lastModified
+            , crc32 = Flate.crc32 uncompressed
+            , compressedSize = Bytes.width compressed
+            , uncompressedSize = Bytes.width uncompressed
+            , externalAttributes = fileMode
+        }
+
+
+{-| Create a directory entry.
+
+You do not need to explicitly create directories. Extracting programs automatically create directories in the path to a file.
+
+Use this if you need to add directory metadata or if you want a directory to exist even if it doesn't contain any files.
+
+-}
+createDirectory : Meta -> Entry
+createDirectory meta =
+    let
+        base =
+            entryMeta meta
+    in
+    Entry (Exactly noBytes)
+        { base
+            | fileName =
+                if String.endsWith "/" base.fileName then
+                    base.fileName
+
+                else
+                    base.fileName ++ "/"
+            , externalAttributes = dirMode
+        }

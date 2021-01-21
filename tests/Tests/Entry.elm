@@ -1,10 +1,11 @@
 module Tests.Entry exposing (suite)
 
+import Bytes.Encode as Encode
 import Expect exposing (Expectation)
 import Hex.Convert
 import Test exposing (..)
 import Tests.Zip
-import Time
+import Time exposing (Posix, Zone)
 import Zip
 import Zip.Entry exposing (..)
 
@@ -50,6 +51,32 @@ corruptedDeflate =
 v1 : (Entry -> Expectation) -> () -> Expectation
 v1 =
     withSample "sample/versions/v1.txt"
+
+
+testEntryMeta : Meta -> Entry -> List Test
+testEntryMeta meta entry =
+    [ test "keeps the right path" <|
+        \_ ->
+            entry
+                |> path
+                |> Expect.equal meta.path
+    , test "keeps the right comment" <|
+        \_ ->
+            entry
+                |> comment
+                |> Just
+                |> Expect.equal meta.comment
+    , test "keeps the right timestamp" <|
+        \_ ->
+            entry
+                |> lastModified (Tuple.first meta.lastModified)
+                |> Tests.Zip.sameDosTime (Tuple.second meta.lastModified)
+    ]
+
+
+timestamp : ( Zone, Posix )
+timestamp =
+    ( Time.utc, Time.millisToPosix 1611189269538 )
 
 
 suite : Test
@@ -101,22 +128,97 @@ suite =
             , test "checks integrity" <|
                 corrupted (toBytes >> Expect.equal (Err IntegrityError))
             , test "fails on unsupported compression method" <|
-                unsupported (toBytes >> Expect.equal (Err (UnsupportedCompression 0x0A)))
+                unsupported
+                    (\entry ->
+                        case toBytes entry of
+                            Err (UnsupportedCompression 0x0A _) ->
+                                Expect.pass
+
+                            _ ->
+                                Expect.fail "Did not fail with Unsupported Compression"
+                    )
             , test "fails on corrupted flate data" <|
                 corruptedDeflate (toBytes >> Expect.equal (Err InflateError))
             ]
-        , describe "extractWith"
-            [ test "allows falling back on unsupported compression" <|
-                unsupported
-                    (extractWith
-                        (\{ method, rawBytes } ->
-                            if method == 0x0A then
-                                Just rawBytes
+        , describe "store" <|
+            let
+                meta =
+                    { path = "data/hi.txt"
+                    , lastModified = timestamp
+                    , comment = Just "hello world comment"
+                    }
 
-                            else
-                                Nothing
-                        )
-                        >> Expect.equal (Err IntegrityError)
-                    )
+                entry =
+                    store meta (Encode.encode <| Encode.string "hello world")
+            in
+            [ test "keeps the right data" <|
+                \_ ->
+                    entry
+                        |> toString
+                        |> Expect.equal (Ok "hello world")
+            , test "does not compress" <|
+                \_ ->
+                    compressedSize entry
+                        |> Expect.equal (extractedSize entry)
+            , test "does not mark as directory" <|
+                \_ ->
+                    entry
+                        |> isDirectory
+                        |> Expect.equal False
             ]
+                ++ testEntryMeta meta entry
+        , describe "compress" <|
+            let
+                meta =
+                    { path = "data/hi.txt"
+                    , lastModified = timestamp
+                    , comment = Just "nested file"
+                    }
+
+                entry =
+                    compress meta (Encode.encode <| Encode.string "hello world")
+            in
+            [ test "keeps the right data" <|
+                \_ ->
+                    entry
+                        |> toString
+                        |> Expect.equal (Ok "hello world")
+            , test "does compress" <|
+                \_ ->
+                    compressedSize entry
+                        |> Expect.notEqual (extractedSize entry)
+            , test "does not mark as directory" <|
+                \_ ->
+                    entry
+                        |> isDirectory
+                        |> Expect.equal False
+            ]
+                ++ testEntryMeta meta entry
+        , describe "createDirectory" <|
+            let
+                meta =
+                    { path = "data/"
+                    , lastModified = timestamp
+                    , comment = Just "directory"
+                    }
+
+                entry =
+                    createDirectory meta
+            in
+            [ test "marks as directory" <|
+                \_ ->
+                    entry
+                        |> isDirectory
+                        |> Expect.equal True
+            , test "appends slash if missing" <|
+                \_ ->
+                    createDirectory
+                        { path = "data"
+                        , lastModified = timestamp
+                        , comment = Nothing
+                        }
+                        |> path
+                        |> Expect.equal "data/"
+            ]
+                ++ testEntryMeta meta entry
         ]
