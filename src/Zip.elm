@@ -223,7 +223,7 @@ Keep all files under 1MB:
 
 Keep only `.txt` files:
 
-    filter (String.endsWith ".txt" << Entry.path) zip
+    filter (Entry.path >> String.endsWith ".txt") zip
 
 -}
 filter : (Entry -> Bool) -> Zip -> Zip
