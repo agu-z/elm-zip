@@ -1,14 +1,15 @@
 on: push
 
-name: "Build and Test"
+name: "Build"
 
 jobs:
   build:
-    name: "Build and Test"
+    name: Build 
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
+
       - uses: actions/setup-node@v1
         with:
           node-version: 14
@@ -17,8 +18,12 @@ jobs:
         run: |
           npm install -g elm
           elm make
-          
+                    
       - name: Test
         run: |
           npm install -g elm-test
           elm-test 
+      
+      - name: Review
+        run: |
+          npx elm-review

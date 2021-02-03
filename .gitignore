@@ -4,3 +4,5 @@ elm-stuff
 repl-temp-*
 
 .idea
+
+node_modules

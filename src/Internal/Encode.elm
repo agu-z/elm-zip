@@ -3,7 +3,7 @@ module Internal.Encode exposing (noBytes, writeArchive)
 import Bytes exposing (Bytes, Endianness(..))
 import Bytes.Encode as Encode exposing (Encoder)
 import Internal.Decode exposing (readFile)
-import Internal.Format exposing (CompressionMethod(..), Entry(..), EntryMeta)
+import Internal.Format exposing (CompressionMethod(..), Entry(..))
 
 
 writeArchive : List Entry -> Bytes
