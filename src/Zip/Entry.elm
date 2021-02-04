@@ -4,6 +4,7 @@ module Zip.Entry exposing
     , toBytes
     , ExtractError(..)
     , path
+    , basename
     , extractedSize
     , compressedSize
     , lastModified
@@ -31,6 +32,7 @@ module Zip.Entry exposing
 # Read Metadata
 
 @docs path
+@docs basename
 @docs extractedSize
 @docs compressedSize
 @docs lastModified
@@ -210,6 +212,23 @@ Other applications might want to explore the archive, and can use [`Zip.ls`](./Z
 path : Entry -> String
 path (Entry _ record) =
     record.fileName
+
+
+{-| Get the final component of an entry's path.
+
+    basename v1 == "v1.txt"
+
+    path v1 == "versions/v1.txt"
+
+-}
+basename : Entry -> String
+basename =
+    path
+        >> String.split "/"
+        >> List.filter ((/=) "")
+        >> List.reverse
+        >> List.head
+        >> Maybe.withDefault ""
 
 
 {-| Get the uncompressed size of an entry.

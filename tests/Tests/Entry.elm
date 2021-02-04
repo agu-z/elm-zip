@@ -86,6 +86,14 @@ suite =
             [ test "returns the correct value" <|
                 versionJson (path >> Expect.equal "sample/version.json")
             ]
+        , describe "basename"
+            [ test "works with nested files" <|
+                v1 (basename >> Expect.equal "v1.txt")
+            , test "works with nested directories" <|
+                withSample "sample/versions/" (basename >> Expect.equal "versions")
+            , test "works with root entries" <|
+                withSample "sample/" (basename >> Expect.equal "sample")
+            ]
         , describe "extractedSize"
             [ test "returns the correct value" <|
                 v1 (extractedSize >> Expect.equal 12)
