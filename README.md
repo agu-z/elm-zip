@@ -4,7 +4,7 @@ Read and write [ZIP archives](https://en.wikipedia.org/wiki/ZIP_file_format) wit
 
 Check out [a simple example](https://ellie-app.com/cgCDzyXQd5Ya1) on Ellie.
 
-See [the `Zip` module documentation](https://package.elm-lang.org/packages/agu-z/elm-zip/2.1.0/Zip) to learn how to use it.
+See [the `Zip` module documentation](https://package.elm-lang.org/packages/agu-z/elm-zip/2.1.1/Zip) to learn how to use it.
 
 ## Performance
 
