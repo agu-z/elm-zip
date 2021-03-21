@@ -2,9 +2,9 @@
 
 Read and write [ZIP archives](https://en.wikipedia.org/wiki/ZIP_file_format) using pure Elm.
 
-See [the `Zip` module documentation](https://package.elm-lang.org/packages/agu-z/elm-zip/2.1.1/Zip) to learn how to use it.
+See [the `Zip` module documentation](https://package.elm-lang.org/packages/agu-z/elm-zip/3.0.0/Zip) to learn how to use it.
 
-You can also check out an [example app](./examples/src/Read.elm) that can open an archive and extract files from it.
+You can also check out an [example app](https://github.com/agu-z/elm-zip/blob/main/examples/src/Read.elm) that can open an archive and extract files from it.
 
 ## Performance
 
