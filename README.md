@@ -2,16 +2,15 @@
 
 Read and write [ZIP archives](https://en.wikipedia.org/wiki/ZIP_file_format) without leaving Elm.
 
-Check out [a simple example](https://ellie-app.com/cgCDzyXQd5Ya1) on Ellie.
-
 See [the `Zip` module documentation](https://package.elm-lang.org/packages/agu-z/elm-zip/2.1.1/Zip) to learn how to use it.
+
+You can also check out an [example app](./examples/src/Read.elm) that can open an archive and extract files from it.
 
 ## Performance
 
 These are the early days of this library and I'm mostly using it to work with fairly small archives.
 
-At this point, you might find performance bottlenecks.
-In that case, please [create an issue](https://github.com/agu-z/elm-zip/issues/new) that describes your use-case and
+If you find bottlenecks please [create an issue](https://github.com/agu-z/elm-zip/issues/new) that describes your use-case and
 -whenever possible- provides test files.
 
 ## Acknowledgements
