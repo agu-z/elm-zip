@@ -14,7 +14,7 @@ withSample : String -> (Entry -> Expectation) -> () -> Expectation
 withSample name expect =
     Tests.Zip.withSample
         (\zip ->
-            case zip |> Zip.byPath name of
+            case zip |> Zip.getEntry name of
                 Just entry ->
                     expect entry
 

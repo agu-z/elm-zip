@@ -42,18 +42,18 @@ suite =
             ]
         , describe "ls"
             [ test "returns all entries in the file" <|
-                withSample (Zip.ls >> List.length >> Expect.equal 10)
+                withSample (Zip.entries >> List.length >> Expect.equal 10)
             ]
         , describe "byName"
             [ test "returns just the entry if it exists" <|
                 withSample
-                    (Zip.byPath "sample/version.json"
+                    (Zip.getEntry "sample/version.json"
                         >> Maybe.map Zip.Entry.path
                         >> Expect.equal (Just "sample/version.json")
                     )
             , test "returns nothing if it does not exist" <|
                 withSample
-                    (Zip.byPath "sample/nonexistent"
+                    (Zip.getEntry "sample/nonexistent"
                         >> Maybe.map Zip.Entry.path
                         >> Expect.equal Nothing
                     )
@@ -75,7 +75,7 @@ suite =
             [ test "has no entries" <|
                 \_ ->
                     Zip.empty
-                        |> Zip.ls
+                        |> Zip.entries
                         |> List.length
                         |> Expect.equal 0
             ]
@@ -85,10 +85,10 @@ suite =
                     (\zip ->
                         let
                             entries =
-                                Zip.ls zip
+                                Zip.entries zip
                         in
                         Zip.fromEntries entries
-                            |> Zip.ls
+                            |> Zip.entries
                             |> Expect.equal entries
                     )
             ]
@@ -96,13 +96,13 @@ suite =
             [ test "adds an entry to the archive" <|
                 withSample
                     (\zip ->
-                        case Zip.byPath "sample/version.json" zip of
+                        case Zip.getEntry "sample/version.json" zip of
                             Just entry ->
                                 Zip.empty
                                     |> Zip.insert entry
                                     |> Expect.all
                                         [ Zip.count >> Expect.equal 1
-                                        , Zip.byPath "sample/version.json" >> Expect.equal (Just entry)
+                                        , Zip.getEntry "sample/version.json" >> Expect.equal (Just entry)
                                         ]
 
                             Nothing ->
@@ -124,7 +124,7 @@ suite =
                             |> Zip.insert newEntry
                             |> Expect.all
                                 [ Zip.count >> Expect.equal 10
-                                , Zip.byPath "sample/version.json" >> Expect.equal (Just newEntry)
+                                , Zip.getEntry "sample/version.json" >> Expect.equal (Just newEntry)
                                 ]
                     )
             ]
@@ -137,18 +137,18 @@ suite =
                 withSample
                     (filtered
                         >> Expect.all
-                            [ Zip.byPath "sample/version.json" >> Expect.equal Nothing
-                            , Zip.byPath "sample/" >> Expect.equal Nothing
-                            , Zip.byPath "sample/corrupted" >> Expect.equal Nothing
+                            [ Zip.getEntry "sample/version.json" >> Expect.equal Nothing
+                            , Zip.getEntry "sample/" >> Expect.equal Nothing
+                            , Zip.getEntry "sample/corrupted" >> Expect.equal Nothing
                             ]
                     )
             , test "keeps entries for which the predicate returns True" <|
                 withSample
                     (filtered
                         >> Expect.all
-                            [ Zip.byPath "sample/versions/v1.txt" >> Expect.notEqual Nothing
-                            , Zip.byPath "sample/versions/v2.txt" >> Expect.notEqual Nothing
-                            , Zip.byPath "sample/versions/meta/comments.txt" >> Expect.notEqual Nothing
+                            [ Zip.getEntry "sample/versions/v1.txt" >> Expect.notEqual Nothing
+                            , Zip.getEntry "sample/versions/v2.txt" >> Expect.notEqual Nothing
+                            , Zip.getEntry "sample/versions/meta/comments.txt" >> Expect.notEqual Nothing
                             ]
                     )
             ]
@@ -195,7 +195,7 @@ suite =
                                 |> Zip.insert hiTxt
                                 |> Zip.toBytes
                                 |> Zip.fromBytes
-                                |> Maybe.andThen (Zip.byPath "hi.txt")
+                                |> Maybe.andThen (Zip.getEntry "hi.txt")
                     in
                     case maybeEntry of
                         Nothing ->
@@ -214,7 +214,7 @@ suite =
                         |> Zip.insert nestedHiTxt
                         |> Zip.toBytes
                         |> Zip.fromBytes
-                        |> Maybe.andThen (Zip.byPath "data/hi.txt")
+                        |> Maybe.andThen (Zip.getEntry "data/hi.txt")
                         |> Maybe.map Zip.Entry.toString
                         |> Expect.equal (Just <| Ok "hello world")
             , test "directory entries" <|
@@ -223,7 +223,7 @@ suite =
                         |> Zip.insert dataDir
                         |> Zip.toBytes
                         |> Zip.fromBytes
-                        |> Maybe.andThen (Zip.byPath "data/")
+                        |> Maybe.andThen (Zip.getEntry "data/")
                         |> Maybe.map Zip.Entry.isDirectory
                         |> Expect.equal (Just True)
             , test "multiple entries" <|

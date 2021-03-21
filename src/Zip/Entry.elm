@@ -203,10 +203,10 @@ Instead, each entry simply indicates its absolute path in the archive.
 
 Different applications have different needs and they may or may not care about the tree structure.
 
-Some applications might expect a certain structure and can simply use [`Zip.byPath`](./Zip#byName) to get the
+Some applications might expect a certain structure and can simply use [`Zip.getEntry`](./Zip#getEntry) to get the
 relevant entries.
 
-Other applications might want to explore the archive, and can use [`Zip.ls`](./Zip#ls) to get a list of the entries and go from there.
+Other applications might want to explore the archive, and can use [`Zip.entries`](./Zip#entries) to get a list of the entries and go from there.
 
 -}
 path : Entry -> String

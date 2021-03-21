@@ -1,8 +1,8 @@
 module Zip exposing
     ( Zip
     , fromBytes
-    , ls
-    , byPath
+    , entries
+    , getEntry
     , count
     , isEmpty
     , empty
@@ -28,8 +28,8 @@ Once you have a `Zip`, you can use it to access its files and directories.
 
 Use the [Zip.Entry module](./Zip-Entry#Entry) to do read their content and metadata.
 
-@docs ls
-@docs byPath
+@docs entries
+@docs getEntry
 @docs count
 @docs isEmpty
 
@@ -113,14 +113,14 @@ From here, you can [download the archive](https://package.elm-lang.org/packages/
 
 -}
 toBytes : Zip -> Bytes
-toBytes (Zip entries) =
-    writeArchive entries
+toBytes (Zip allEntries) =
+    writeArchive allEntries
 
 
-{-| List all [entries](./Zip-Entry#Entry) in the archive.
+{-| Get all [entries](./Zip-Entry#Entry) in the archive.
 
     allEntries =
-        Zip.ls zip
+        Zip.entries zip
 
 Files and directories get their own entries.
 
@@ -128,45 +128,45 @@ If you only care about one kind, you can use the [`Zip.Entry.isDirectory`](./Zip
 
     allFiles =
         zip
-            |> Zip.ls
+            |> Zip.entries
             |> List.filter (not << Entry.isDirectory)
 
 -}
-ls : Zip -> List Entry
-ls (Zip entries) =
-    entries
+entries : Zip -> List Entry
+entries (Zip allEntries) =
+    allEntries
 
 
 {-| Get an [entry](./Zip-Entry#Entry) by its absolute path.
 
-    zip |> Zip.byPath "versions/v1.txt"
+    zip |> Zip.getEntry "versions/v1.txt"
 
 `Nothing` is returned if no entry matches the path exactly.
 
 Directory entries are typically stored in the archive with a slash at the end:
 
-    zip |> Zip.byPath "versions" == Nothing
+    zip |> Zip.getEntry "versions" == Nothing
 
-    zip |> Zip.byPath "versions/" == Just Entry
+    zip |> Zip.getEntry "versions/" == Just (Entry(..))
 
 -}
-byPath : String -> Zip -> Maybe Entry
-byPath path =
-    ls >> find (Entry.path >> (==) path)
+getEntry : String -> Zip -> Maybe Entry
+getEntry path =
+    entries >> find (Entry.path >> (==) path)
 
 
 {-| Count the number of entries in an archive.
 -}
 count : Zip -> Int
 count =
-    ls >> List.length
+    entries >> List.length
 
 
 {-| Determine if an archive is empty.
 -}
 isEmpty : Zip -> Bool
 isEmpty =
-    ls >> List.isEmpty
+    entries >> List.isEmpty
 
 
 {-| An empty archive with no entries.
@@ -188,9 +188,9 @@ fromEntries =
 
 {-| Add a new entry to the archive.
 
-This function replaces entries with the same path. You can conditionally add it by checking existence with the [`byPath`](#byPath) function:
+This function replaces entries with the same path. You can conditionally add it by checking existence with the [`getEntry`](#getEntry) function:
 
-    case zip |> Zip.byPath path of
+    case zip |> Zip.getEntry path of
         Nothing ->
             -- Entry does not exist, create and add it
             zip |> Zip.insert (createEntry ())
