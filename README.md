@@ -1,6 +1,6 @@
 # elm-zip
 
-Read and write [ZIP archives](https://en.wikipedia.org/wiki/ZIP_file_format) without leaving Elm.
+Read and write [ZIP archives](https://en.wikipedia.org/wiki/ZIP_file_format) using pure Elm.
 
 See [the `Zip` module documentation](https://package.elm-lang.org/packages/agu-z/elm-zip/2.1.1/Zip) to learn how to use it.
 
