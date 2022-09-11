@@ -96,13 +96,12 @@ the [specification](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT)
 import Bitwise
 import Bytes exposing (Bytes)
 import Bytes.Decode as Decode
-import Date
 import Flate exposing (inflate)
 import Internal.Decode exposing (readFile)
 import Internal.Encode exposing (noBytes)
 import Internal.Format as Internal exposing (CompressionMethod(..), Entry(..), EntryBytes(..), EntryMeta)
 import LZ77
-import Time exposing (Posix, Zone)
+import Time exposing (Month(..), Posix, Zone)
 import Time.Extra as Time
 
 
@@ -269,7 +268,7 @@ lastModified timezone (Entry _ record) =
             time
                 |> Bitwise.shiftRightBy 21
                 |> Bitwise.and 15
-                |> Date.numberToMonth
+                |> numberToMonth
         , day =
             time
                 |> Bitwise.shiftRightBy 16
@@ -288,6 +287,46 @@ lastModified timezone (Entry _ record) =
                 |> (*) 2
         , millisecond = 0
         }
+
+
+numberToMonth : Int -> Month
+numberToMonth month =
+    case max 1 month of
+        1 ->
+            Jan
+
+        2 ->
+            Feb
+
+        3 ->
+            Mar
+
+        4 ->
+            Apr
+
+        5 ->
+            May
+
+        6 ->
+            Jun
+
+        7 ->
+            Jul
+
+        8 ->
+            Aug
+
+        9 ->
+            Sep
+
+        10 ->
+            Oct
+
+        11 ->
+            Nov
+
+        _ ->
+            Dec
 
 
 {-| Get the comment of an entry.
@@ -333,7 +372,7 @@ posixToDos ( zone, time ) =
 
         month =
             Time.toMonth zone time
-                |> Date.monthToNumber
+                |> monthToNumber
                 |> Bitwise.shiftLeftBy 21
 
         day =
@@ -357,6 +396,46 @@ posixToDos ( zone, time ) =
         |> Bitwise.or hour
         |> Bitwise.or minute
         |> Bitwise.or second
+
+
+monthToNumber : Month -> Int
+monthToNumber month =
+    case month of
+        Jan ->
+            1
+
+        Feb ->
+            2
+
+        Mar ->
+            3
+
+        Apr ->
+            4
+
+        May ->
+            5
+
+        Jun ->
+            6
+
+        Jul ->
+            7
+
+        Aug ->
+            8
+
+        Sep ->
+            9
+
+        Oct ->
+            10
+
+        Nov ->
+            11
+
+        Dec ->
+            12
 
 
 {-| Metadata needed to create an entry.
