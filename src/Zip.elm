@@ -55,7 +55,7 @@ Checkout the [Build section](./Zip-Entry#build) of the `Zip.Entry` module to lea
 import Bytes exposing (Bytes)
 import Internal.Decode exposing (readDirectory)
 import Internal.Encode exposing (writeArchive)
-import Internal.Format exposing (Entry(..))
+import Internal.Format exposing (Entry)
 import Zip.Entry as Entry
 
 

@@ -3,7 +3,7 @@
     "name": "agu-z/elm-zip",
     "summary": "Read and write ZIP archives using pure Elm.",
     "license": "BSD-3-Clause",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "exposed-modules": [
         "Zip",
         "Zip.Entry"

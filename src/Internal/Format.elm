@@ -5,7 +5,7 @@ module Internal.Format exposing
     , EntryMeta
     )
 
-import Bytes exposing (Bytes, Endianness(..))
+import Bytes exposing (Bytes)
 
 
 type CompressionMethod
